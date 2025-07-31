@@ -3,7 +3,9 @@ from dataclasses import dataclass
 
 
 @dataclass
-class ChannelData:
+class VideoData:
+    channel_id: str
+    channel_title: str
     id: str
     title: str
     description: str

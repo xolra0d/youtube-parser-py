@@ -32,4 +32,5 @@ ___
 - [`yt-dlp`](https://github.com/yt-dlp/yt-dlp) + `ffmpeg` – background video downloading
 ___
 ## License
-MIT
+- MIT
+___
