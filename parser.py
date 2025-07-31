@@ -1,10 +1,12 @@
-import asyncio
 import os
 import httpx
+import random
+import asyncio
 import datetime
 import typing as tp
 from functools import wraps
 
+from db import Inserter
 from functions import create_logger
 from structs import VideoData
 
@@ -85,7 +87,7 @@ class YoutubeAPIParser:
             await self.queue.put(channel["snippet"]["channelId"][2:]) # first 2 letters indicate specific type: channel (UC). e.g. for playlist (UU)
 
     @validate_client
-    async def get_videos(self, channel_id: str) -> list[VideoData]:
+    async def get_videos(self, channel_id: str, inserter) -> list[VideoData]:
         """Uses 1 quota to find new channels"""
         playlist_id = "UU" + channel_id
         end_point = f"/playlistItems?part=snippet%2CcontentDetails&maxResults=50&playlistId={playlist_id}&key={self.config['YOUTUBE_API_KEY']}" # &pageToken={next_page_token}
@@ -110,9 +112,8 @@ class YoutubeAPIParser:
                 elif "medium" in thumbnails:
                     thumbnail_url = thumbnails["medium"]["url"]
 
-                results.append(VideoData(
+                await inserter.insert_wait(VideoData(
                     channel_id=snippet["channelId"],
-                    channel_title=snippet["videoOwnerChannelTitle"],
                     id=video["contentDetails"]["videoId"],
                     title=snippet["title"],
                     description=snippet["description"],
@@ -127,3 +128,16 @@ class YoutubeAPIParser:
             if response.status_code != httpx.codes.OK:
                 break
         return results
+
+    async def run_once(self):
+        await self.get_new_channels_id("Lens")
+        async with Inserter() as inserter:
+            while self.queue.qsize() > 0:
+                channel = await self.queue.get()
+                await self.get_videos(channel, inserter)
+            await inserter.flush()
+
+
+async def main():
+    async with YoutubeAPIParser() as parser:
+        await parser.run_once()

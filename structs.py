@@ -1,13 +1,11 @@
-from datetime import datetime
-from dataclasses import dataclass
+import datetime
+import pydantic
 
 
-@dataclass
-class VideoData:
+class VideoData(pydantic.BaseModel):
     channel_id: str
-    channel_title: str
     id: str
     title: str
     description: str
     thumbnail: str
-    created_at: datetime
+    created_at: datetime.datetime
