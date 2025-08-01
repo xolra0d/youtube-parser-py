@@ -16,7 +16,7 @@ async def shutdown():
 
 # EXAMPLE USAGE
 async def main():
-    logger.info(f"Starting parser...")
+    logger.info("Starting parser...")
     loop = asyncio.get_running_loop()
 
     loop.add_signal_handler(signal.SIGINT, lambda: asyncio.create_task(shutdown()))
