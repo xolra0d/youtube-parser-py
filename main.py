@@ -1,6 +1,5 @@
 import signal
 import asyncio
-import sys
 
 from db import Inserter
 from functions import create_logger
