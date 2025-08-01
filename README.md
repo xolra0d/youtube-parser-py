@@ -21,16 +21,17 @@ ___
 - `main.py` - running file
 ___
 ## Installation & Usage
-0. [Install ClickHouse](https://clickhouse.com/docs/install)
-1. `pip3 install -r requirements.txt` - install requirements
-2. `python3 main.py` - main scraping logic
-3. `python3 downloader.py` - downloading logic
+1. [Install ClickHouse](https://clickhouse.com/docs/install)
+2. [install ffmpeg](https://ffmpeg.org/download.html)
+2. `pip3 install -r requirements.txt` - install requirements
+3. `python3 main.py` - main scraping logic
+4. `python3 downloader.py` - downloading logic
 ___
 ## Tech Stack
 - [`asyncio`](https://docs.python.org/3/library/asyncio.html) – concurrency
 - [`httpx`](https://www.python-httpx.org/) – async HTTP requests
 - [`ClickHouse`](https://clickhouse.com/) – fast OLAP database for structured video data
-- [`yt-dlp`](https://github.com/yt-dlp/yt-dlp) + `ffmpeg` – background video downloading
+- [`yt-dlp`](https://github.com/yt-dlp/yt-dlp) + `ffmpeg` – video downloading
 ___
 ## License
 - MIT
