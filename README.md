@@ -3,6 +3,7 @@ ___
 **Fast async-based YouTube scraper**, which helps you in <ins>official way</ins> to collect random video metadata and store it in a database for later use.
 Example use: by ML engineers who need video samples for training AI models.
 Additionally, they can be filtered by title, description, duration, etc.
+BEFORE START GET YOUR API_KEY: https://developers.google.com/youtube/v3/getting-started
 ___
 ## Features
 - Find random channels or videos using YouTube Data API V3
@@ -11,6 +12,7 @@ ___
 - Fully async using `asyncio` + `httpx`
 - Optional: video downloading to directory (`.mp4`) using `yt-dlp`
 - Plug and play like project
+- 
 ___
 ## Modules
 - `functions.py` - additional functions
@@ -24,7 +26,7 @@ ___
 1. [Install ClickHouse](https://clickhouse.com/docs/install)
 2. [install ffmpeg](https://ffmpeg.org/download.html)
 2. `pip3 install -r requirements.txt` - install requirements
-3. `python3 main.py` - main scraping logic
+3. `YOUTUBE_API_KEY=YOUR_KEY python3 main.py` - main scraping logic
 4. `python3 downloader.py` - downloading logic
 ___
 ## Tech Stack
