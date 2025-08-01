@@ -1,3 +1,4 @@
+import asyncio
 import os
 import yt_dlp
 from pathlib import Path
@@ -23,13 +24,15 @@ def download_video(url, output_path, quality="best"):
 async def main():
     output_path = "./downloads"
     Path(output_path).mkdir(parents=True, exist_ok=True)
-
-    while True:
-        async with DownloaderDB() as db:
-            for _ in range(5):
-                video_id = await db.get_random_video_id()
-                download_video(video_id, output_path)
-                await db.mark_downloaded(video_id)
+    try:
+        while True:
+            async with DownloaderDB() as db:
+                for _ in range(5):
+                    video_id = await db.get_random_video_id()
+                    download_video(f"https://www.youtube.com/watch?v={video_id}", output_path)
+                    await db.mark_downloaded(video_id)
+    except (KeyboardInterrupt, asyncio.CancelledError):
+        print("\nDownload interrupted by user. Cleaning up...")
 
 import asyncio
 asyncio.run(main())
