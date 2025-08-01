@@ -1,6 +1,6 @@
-import asyncio
 import os
 import yt_dlp
+import asyncio
 from pathlib import Path
 
 from db import DownloaderDB
@@ -34,5 +34,5 @@ async def main():
     except (KeyboardInterrupt, asyncio.CancelledError):
         print("\nDownload interrupted by user. Cleaning up...")
 
-import asyncio
-asyncio.run(main())
+if __name__ == "__main__":
+    asyncio.run(main())
