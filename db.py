@@ -9,6 +9,7 @@ from structs import VideoData
 
 class Singleton(type):
     _instances = {}
+
     def __call__(cls, *args, **kwargs):
         if cls not in cls._instances:
             cls._instances[cls] = super(Singleton, cls).__call__(*args, **kwargs)
@@ -115,4 +116,4 @@ class DownloaderDB(metaclass=Singleton):
             await asyncio.sleep(5)
 
     async def mark_downloaded(self, video_id: str):
-        await self.client.query(f"ALTER TABLE {self.table_name} UPDATE is_downloaded = false WHERE id = '{video_id}'")
+        await self.client.query(f"ALTER TABLE {self.table_name} UPDATE is_downloaded = true WHERE id = '{video_id}'")

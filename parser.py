@@ -135,7 +135,9 @@ class YoutubeAPIParser:
             return results
 
     async def run_once(self):
-        random_q = random.choice(string.ascii_lowercase) + random.choice(string.ascii_lowercase) + random.choice(string.ascii_lowercase)
+        chars = string.digits + string.ascii_letters
+        random_q = random.choice(chars) + random.choice(chars) + random.choice(chars)
+
         channels: list[int] = await self.get_new_channels_id(random_q)
         async with Inserter() as inserter:
             tasks = [asyncio.create_task(self.get_videos(channel_id, inserter)) for channel_id in channels]
