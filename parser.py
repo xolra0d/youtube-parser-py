@@ -1,16 +1,17 @@
 import os
 import httpx
 import random
+import string
 import asyncio
 import datetime
 import typing as tp
 from functools import wraps
 
 from db import Inserter
-from functions import create_logger
 from structs import VideoData
+from functions import create_logger
 
-HTTPX_CONFIG = {
+CONFIG = {
     "YOUTUBE_API_KEY": os.environ.get("YOUTUBE_API_KEY"),
     "timeout": httpx.Timeout(
         connect=10.0,
@@ -30,6 +31,7 @@ HTTPX_CONFIG = {
     }),
     "follow_redirects": True,
     "verify": True,
+    "semaphore": asyncio.Semaphore(6),
 }
 
 
@@ -45,13 +47,12 @@ def validate_client(func: tp.Callable) -> tp.Callable:
 class YoutubeAPIParser:
     def __init__(self, base_url: str = "https://www.googleapis.com/youtube/v3", config = None) -> None:
         if config is None:
-            config = HTTPX_CONFIG
+            config = CONFIG
 
         self.client: tp.Optional[httpx.AsyncClient] = None
         self.config = config
         self.base_url = base_url
         self.logger = create_logger("YoutubeAPIParser")
-        self.queue = asyncio.Queue() # will consist of channel_
 
     async def __aenter__(self) -> 'YoutubeAPIParser':
         self.client = httpx.AsyncClient(
@@ -70,7 +71,7 @@ class YoutubeAPIParser:
             self.client = None
 
     @validate_client
-    async def get_new_channels_id(self, q:str, count: int=50):
+    async def get_new_channels_id(self, q:str, count: int=50) -> list[str]:
         """Uses 100 quotas to find new channels id"""
         if len(q) == 0:
             raise RuntimeError("Search query must not be empty")
@@ -81,63 +82,67 @@ class YoutubeAPIParser:
 
         response = await self.client.get(end_point)
         if response.status_code != httpx.codes.OK:
-            return
+            return []
 
+        results = []
         for channel in response.json().get("items", []):
-            await self.queue.put(channel["snippet"]["channelId"][2:]) # first 2 letters indicate specific type: channel (UC). e.g. for playlist (UU)
+            results.append(channel["snippet"]["channelId"][2:]) # first 2 letters indicate specific type: channel (UC). e.g. for playlist (UU)
+
+        return results
 
     @validate_client
     async def get_videos(self, channel_id: str, inserter) -> list[VideoData]:
         """Uses 1 quota to find new channels"""
-        playlist_id = "UU" + channel_id
-        end_point = f"/playlistItems?part=snippet%2CcontentDetails&maxResults=50&playlistId={playlist_id}&key={self.config['YOUTUBE_API_KEY']}" # &pageToken={next_page_token}
+        async with self.config["semaphore"]:
+            playlist_id = "UU" + channel_id
+            end_point = f"/playlistItems?part=snippet%2CcontentDetails&maxResults=50&playlistId={playlist_id}&key={self.config['YOUTUBE_API_KEY']}" # &pageToken={next_page_token}
 
-        response = await self.client.get(end_point)
-        if response.status_code != httpx.codes.OK:
-            return []
-
-        results = []
-
-        while True:
-            data = response.json()
-            for video in data["items"]:
-                snippet = video["snippet"]
-
-                thumbnail_url = None
-                thumbnails = snippet.get("thumbnails", {})
-                if "maxres" in thumbnails:
-                    thumbnail_url = thumbnails["maxres"]["url"]
-                elif "high" in thumbnails:
-                    thumbnail_url = thumbnails["high"]["url"]
-                elif "medium" in thumbnails:
-                    thumbnail_url = thumbnails["medium"]["url"]
-
-                await inserter.insert_wait(VideoData(
-                    channel_id=snippet["channelId"],
-                    id=video["contentDetails"]["videoId"],
-                    title=snippet["title"],
-                    description=snippet["description"],
-                    thumbnail=thumbnail_url,
-                    created_at=datetime.datetime.fromisoformat(snippet["publishedAt"]),
-                ))
-
-            next_page_token = data.get("nextPageToken")
-
-            if next_page_token is None: break
-            response = await self.client.get(end_point + f"&pageToken={next_page_token}")
+            response = await self.client.get(end_point)
             if response.status_code != httpx.codes.OK:
-                break
-        return results
+                return []
+
+            results = []
+
+            while True:
+                data = response.json()
+                for video in data["items"]:
+                    snippet = video["snippet"]
+
+                    thumbnail_url = None
+                    thumbnails = snippet.get("thumbnails", {})
+                    if "maxres" in thumbnails:
+                        thumbnail_url = thumbnails["maxres"]["url"]
+                    elif "high" in thumbnails:
+                        thumbnail_url = thumbnails["high"]["url"]
+                    elif "medium" in thumbnails:
+                        thumbnail_url = thumbnails["medium"]["url"]
+
+                    await inserter.insert_wait(VideoData(
+                        channel_id=snippet["channelId"],
+                        id=video["contentDetails"]["videoId"],
+                        title=snippet["title"],
+                        description=snippet["description"],
+                        thumbnail=thumbnail_url,
+                        created_at=datetime.datetime.fromisoformat(snippet["publishedAt"]),
+                    ))
+
+                next_page_token = data.get("nextPageToken")
+
+                if next_page_token is None: break
+                response = await self.client.get(end_point + f"&pageToken={next_page_token}")
+                if response.status_code != httpx.codes.OK:
+                    break
+            return results
 
     async def run_once(self):
-        await self.get_new_channels_id("Lens")
+        random_q = random.choice(string.ascii_lowercase) + random.choice(string.ascii_lowercase) + random.choice(string.ascii_lowercase)
+        channels: list[int] = await self.get_new_channels_id(random_q)
         async with Inserter() as inserter:
-            while self.queue.qsize() > 0:
-                channel = await self.queue.get()
-                await self.get_videos(channel, inserter)
+            tasks = [asyncio.create_task(self.get_videos(channel_id, inserter)) for channel_id in channels]
+            await asyncio.gather(*tasks)
             await inserter.flush()
 
 
-async def main():
-    async with YoutubeAPIParser() as parser:
-        await parser.run_once()
+    async def run_forever(self):
+        while True:
+            await self.run_once()
