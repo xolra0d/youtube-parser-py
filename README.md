@@ -21,6 +21,7 @@ ___
 - `main.py` - running file
 ___
 ## Installation & Usage
+0. [Install ClickHouse](https://clickhouse.com/docs/install)
 1. `pip3 install -r requirements.txt` - install requirements
 2. `python3 main.py` - main scraping logic
 3. `python3 downloader.py` - downloading logic
