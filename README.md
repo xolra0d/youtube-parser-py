@@ -1,6 +1,6 @@
 # YouTube Parser (Python)
 ___
-**Fast async-based YouTube scraper**, which helps you in <ins>official way</ins> to collect random video metadata and store it in a database for later use.
+**Fast async-based YouTube scraper**, which helps in <ins>official way</ins> to collect random video metadata and store it in a database for later use.
 Example use: by ML engineers who need video samples for training AI models.
 Additionally, they can be filtered by title, description, duration, etc.
 BEFORE START GET YOUR API_KEY: https://developers.google.com/youtube/v3/getting-started
