@@ -1,3 +1,4 @@
+import logging
 import os
 import httpx
 import random
@@ -9,10 +10,14 @@ from functools import wraps
 
 from db import Inserter
 from structs import VideoData
-from functions import create_logger
+
+YOUTUBE_API_KEY = os.environ.get("YOUTUBE_API_KEY")
+
+if YOUTUBE_API_KEY is None:
+    raise ValueError("YOUTUBE_API_KEY environment variable not set")
 
 CONFIG = {
-    "YOUTUBE_API_KEY": os.environ.get("YOUTUBE_API_KEY"),
+    "YOUTUBE_API_KEY": YOUTUBE_API_KEY,
     "timeout": httpx.Timeout(
         connect=10.0,
         read=30.0,
@@ -45,14 +50,16 @@ def validate_client(func: tp.Callable) -> tp.Callable:
 
 
 class YoutubeAPIParser:
-    def __init__(self, base_url: str = "https://www.googleapis.com/youtube/v3", config = None) -> None:
+    logger = logging.getLogger("youtube.parser")
+
+    def __init__(self, inserter: Inserter, base_url: str = "https://www.googleapis.com/youtube/v3", config = None) -> None:
         if config is None:
             config = CONFIG
 
         self.client: tp.Optional[httpx.AsyncClient] = None
         self.config = config
         self.base_url = base_url
-        self.logger = create_logger("YoutubeAPIParser")
+        self.inserter = inserter
 
     async def __aenter__(self) -> 'YoutubeAPIParser':
         self.client = httpx.AsyncClient(
@@ -71,7 +78,7 @@ class YoutubeAPIParser:
             self.client = None
 
     @validate_client
-    async def get_new_channels_id(self, q:str, count: int=50) -> list[str]:
+    async def get_new_channels_id(self, q: str, count: int=50) -> list[str]:
         """Uses 100 quotas to find new channels id"""
         if len(q) == 0:
             raise RuntimeError("Search query must not be empty")
@@ -86,12 +93,15 @@ class YoutubeAPIParser:
 
         results = []
         for channel in response.json().get("items", []):
-            results.append(channel["snippet"]["channelId"][2:]) # first 2 letters indicate specific type: channel (UC). e.g. for playlist (UU)
+            channel_id = channel["snippet"]["channelId"]
+            if channel_id.startswith("UC"):
+                channel_id = channel_id[2:]
+            results.append(channel_id)
 
         return results
 
     @validate_client
-    async def get_videos(self, channel_id: str, inserter) -> list[VideoData]:
+    async def get_videos(self, channel_id: str, inserter) -> None:
         """Uses 1 quota to find new channels"""
         async with self.config["semaphore"]:
             playlist_id = "UU" + channel_id
@@ -99,9 +109,7 @@ class YoutubeAPIParser:
 
             response = await self.client.get(end_point)
             if response.status_code != httpx.codes.OK:
-                return []
-
-            results = []
+                return
 
             while True:
                 data = response.json()
@@ -132,19 +140,20 @@ class YoutubeAPIParser:
                 response = await self.client.get(end_point + f"&pageToken={next_page_token}")
                 if response.status_code != httpx.codes.OK:
                     break
-            return results
 
     async def run_once(self):
         chars = string.digits + string.ascii_letters
         random_q = random.choice(chars) + random.choice(chars) + random.choice(chars)
 
         channels: list[int] = await self.get_new_channels_id(random_q)
-        async with Inserter() as inserter:
-            tasks = [asyncio.create_task(self.get_videos(channel_id, inserter)) for channel_id in channels]
-            await asyncio.gather(*tasks)
-            await inserter.flush()
-
+        tasks = [asyncio.create_task(self.get_videos(channel_id, self.inserter)) for channel_id in channels]
+        await asyncio.gather(*tasks)
 
     async def run_forever(self):
         while True:
-            await self.run_once()
+            try:
+                await self.run_once()
+                await asyncio.sleep(5)
+            except Exception as e:
+                self.logger.error(f"Error in run_once: {type(e).__name__}: {e}")
+                await asyncio.sleep(10)

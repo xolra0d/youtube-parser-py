@@ -1,4 +1,5 @@
 import datetime
+import typing as tp
 import pydantic
 
 
@@ -7,5 +8,5 @@ class VideoData(pydantic.BaseModel):
     id: str
     title: str
     description: str
-    thumbnail: str
+    thumbnail: tp.Optional[str]
     created_at: datetime.datetime
